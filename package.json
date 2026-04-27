@@ -1,0 +1,42 @@
+{
+  "name": "@rello-platform/eslint-plugin-permissions",
+  "version": "0.1.0",
+  "description": "ESLint rule that forbids string-literal permission slugs in Rello-ecosystem source. Complements @rello-platform/permissions compile-time PermissionSlug type with build-time lint protection against drift at string-literal boundaries.",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "lib",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  },
+  "keywords": [
+    "eslint",
+    "eslintplugin",
+    "eslint-plugin",
+    "rello",
+    "permissions"
+  ],
+  "peerDependencies": {
+    "eslint": ">=8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@rello-platform/permissions": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@rello-platform/permissions": "github:rello-platform/permissions#v0.1.0",
+    "eslint": "^9.39.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rello-platform/eslint-plugin-permissions.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "license": "UNLICENSED"
+}

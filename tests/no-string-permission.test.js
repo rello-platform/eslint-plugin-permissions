@@ -20,13 +20,18 @@ const tester = new RuleTester({
 // ---------------------------------------------------------------------------
 // RuleTester suite — positive (rule fires) + negative (rule passes).
 //
-// Every canonical-shape literal under test (e.g. `contacts:read`, `flows:write`)
-// is one that exists in @rello-platform/permissions@v0.1.0's SLUG_TO_KEY map,
-// because this test runs from the plugin repo root with permissions installed
-// as a devDependency. The expected messageId is therefore `stringPermissionWithKey`.
+// Membership-only fire (v0.2.0): the rule fires iff the literal is a member of
+// the canonical SLUG_TO_KEY map exported by @rello-platform/permissions. Shape
+// collisions with non-permission namespaces are NOT flagged.
 //
-// For the not-in-canonical regex-only path, see the dedicated `node:test` block
-// below — RuleTester does not have an easy way to mock the resolver per-case.
+// Every canonical-shape literal in the `invalid` array is one that exists in
+// @rello-platform/permissions's SLUG_TO_KEY map, because this test runs from
+// the plugin repo root with permissions installed as a devDependency. The
+// expected messageId is `stringPermissionWithKey`.
+//
+// The `valid` array includes the false-positive regression surface (tag slugs,
+// node module specifiers, Mailgun option keys, etc.) that v0.1.0 fired on with
+// stringPermissionNoKey and v0.2.0 must not flag.
 // ---------------------------------------------------------------------------
 
 tester.run("no-string-permission", rule, {
@@ -88,9 +93,49 @@ tester.run("no-string-permission", rule, {
     { code: "const x = `contacts:${verb}`;" },
 
     // Object key (not value) — Literal as a property key still triggers if it
-    // matches the regex; this is intentional. The "valid" line below tests an
-    // identifier-form key, which is NOT a Literal.
+    // matches the regex AND is in canonical; this test uses an identifier-form
+    // key, which is NOT a Literal.
     { code: `const obj = { contacts_read: true };` },
+
+    // --- v0.2.0 false-positive regression surface ---
+    // These literals MATCH the regex (lowercase resource, colon, lowercase
+    // verb) but are NOT in @rello-platform/permissions's SLUG_TO_KEY. Under
+    // v0.1.0 they fired stringPermissionNoKey; under v0.2.0 they must be
+    // silent.
+    //
+    // Node.js module specifiers
+    { code: `import { createHash } from "node:crypto";` },
+    { code: `import path from "node:path";` },
+    { code: `import { test } from "node:test";` },
+
+    // Mailgun option keys (3rd-party API namespacing)
+    { code: `const opts = { "o:tag": "newsletter" };` },
+    { code: `const opts = { "o:tracking": "yes" };` },
+    { code: `const opts = { "o:tracking-opens": "yes" };` },
+    { code: `const opts = { "o:tracking-clicks": "yes" };` },
+
+    // Lead/tag slugs — same shape as permissions but a different namespace.
+    // Tags live in their own registry; not relevant to permissions canon.
+    { code: `const tag = "harvest-home:hot";` },
+    { code: `const tag = "harvest-home:warm";` },
+    { code: `const tag = "harvest-home:cold";` },
+    { code: `const tag = "harvest-home:monitor";` },
+    { code: `const tag = "oven:past-client";` },
+    { code: `const tag = "source:referral";` },
+    { code: `const tag = "ns:unsubscribed";` },
+    { code: `const tag = "property:single-family";` },
+    { code: `const tag = "property:condo";` },
+    { code: `const tag = "property:townhouse";` },
+    { code: `const tag = "financing:fha";` },
+    { code: `const tag = "financing:conventional";` },
+    { code: `const tag = "financing:va";` },
+    { code: `const tag = "interest:market-updates";` },
+    { code: `const tag = "interest:refinance";` },
+    { code: `const tag = "interest:investment";` },
+
+    // RSS / XML namespace keys
+    { code: `const ns = "content:encoded";` },
+    { code: `const ns = "atom:link";` },
   ],
 
   invalid: [
@@ -190,8 +235,8 @@ tester.run("no-string-permission", rule, {
 });
 
 // ---------------------------------------------------------------------------
-// Direct-Linter tests for the regex-only path (canonical lookup miss) and
-// for inline disable-comment behavior.
+// Direct-Linter tests for the membership-only fire semantic and for inline
+// disable-comment behavior.
 //
 // RuleTester intentionally cannot easily test disable-comment suppression
 // (disables are processed by Linter, not by the rule itself). These tests
@@ -214,21 +259,26 @@ function lintCode(code) {
   });
 }
 
-test("no-string-permission: regex match for non-canonical slug uses noKey message", () => {
+test("no-string-permission: regex match WITHOUT canonical membership is silent (v0.2.0 R1)", () => {
   // `imaginary:perm` matches the regex but is not in @rello-platform/permissions's
-  // SLUG_TO_KEY map, so the noKey branch fires.
+  // SLUG_TO_KEY map. Under v0.2.0 the rule must NOT fire — membership-only.
   const messages = lintCode(`const x = "imaginary:perm";`);
+  assert.strictEqual(
+    messages.length,
+    0,
+    "expected zero diagnostics for non-canonical regex match (v0.2.0 membership-only)",
+  );
+});
+
+test("no-string-permission: canonical literal still fires withKey", () => {
+  const messages = lintCode(`const x = "contacts:read";`);
   assert.strictEqual(messages.length, 1, "expected exactly one diagnostic");
   assert.strictEqual(
     messages[0].messageId,
-    "stringPermissionNoKey",
-    "expected noKey message for slug not in canonical",
+    "stringPermissionWithKey",
+    "expected withKey message for canonical literal",
   );
-  assert.match(
-    messages[0].message,
-    /imaginary:perm/,
-    "diagnostic should quote the offending literal",
-  );
+  assert.match(messages[0].message, /CONTACTS_READ/);
 });
 
 test("no-string-permission: inline eslint-disable-next-line suppresses the diagnostic", () => {
@@ -272,6 +322,45 @@ test("no-string-permission: block-disable suppresses for the wrapped range", () 
     "expected only the post-enable literal `leads:read` to fire",
   );
   assert.match(messages[0].message, /leads:read/);
+});
+
+test("no-string-permission: false-positive class — node module specifiers are silent", () => {
+  const messages = lintCode([
+    'import path from "node:path";',
+    'import { createHash } from "node:crypto";',
+    'import { test } from "node:test";',
+  ].join("\n"));
+  assert.strictEqual(messages.length, 0, "node: specifiers must not fire under v0.2.0");
+});
+
+test("no-string-permission: false-positive class — Mailgun option keys are silent", () => {
+  const messages = lintCode(`
+    const opts = {
+      "o:tag": "newsletter",
+      "o:tracking": "yes",
+      "o:tracking-opens": "yes",
+      "o:tracking-clicks": "yes",
+    };
+  `);
+  assert.strictEqual(messages.length, 0, "o: Mailgun keys must not fire under v0.2.0");
+});
+
+test("no-string-permission: false-positive class — tag slugs are silent", () => {
+  const messages = lintCode(`
+    const tags = [
+      "harvest-home:hot",
+      "harvest-home:warm",
+      "harvest-home:cold",
+      "harvest-home:monitor",
+      "oven:past-client",
+      "source:referral",
+      "ns:unsubscribed",
+      "property:single-family",
+      "financing:fha",
+      "interest:market-updates",
+    ];
+  `);
+  assert.strictEqual(messages.length, 0, "tag slugs must not fire under v0.2.0");
 });
 
 console.log("all tests passed");

@@ -96,3 +96,7 @@ Tests cover positive cases (canonical-shape literals fire) across regex shapes, 
 ## Versioning
 
 Tracks `@rello-platform/permissions`. The plugin does not bundle the canonical registry — it resolves `SLUG_TO_KEY` from the consumer's installed `@rello-platform/permissions` at lint time. Bumping the canonical registry does not require bumping this plugin.
+
+## Tag notice — `v0.3.0` is unusable
+
+`v0.3.0` (pushed 2026-09-16, C-48) points at the **v0.2.0** commit `479102e` — a `git add` aborted on an ignored path, the commit never landed, and the tag went out at the old HEAD. The org ruleset forbids tag deletion, so it stays. It carries `"version": "0.2.0"` and pins `permissions#v0.1.0`; pin **`v0.4.0`** (or later) instead. Nothing consumes `v0.3.0`.

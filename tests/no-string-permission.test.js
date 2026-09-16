@@ -56,6 +56,9 @@ tester.run("no-string-permission", rule, {
     { code: `const x = ":read";` },
 
     // Empty verb segment
+    // Retired canon: `contacts:read` left SLUG_TO_KEY when permissions moved to
+    // `leads:*` (installed v0.54.0). Matches the regex, not canonical → silent.
+    { code: `const x = "contacts:read";` },
     { code: `const x = "contacts:";` },
 
     // Uppercase-containing — canonical is lowercase + hyphens only
@@ -140,17 +143,20 @@ tester.run("no-string-permission", rule, {
 
   invalid: [
     // --- Canonical-shape literals (resolved against installed permissions) ---
+    // C-48 (2026-09-16): permissions v0.54.0's canon is `leads:*` ("Lead" not
+    // "Contact"); `contacts:read` is no longer in SLUG_TO_KEY, so the rule is
+    // correctly SILENT on it — see the valid case below.
     {
-      code: `const x = "contacts:read";`,
+      code: `const x = "leads:delete";`,
       errors: [
         {
           messageId: "stringPermissionWithKey",
-          data: { literal: "contacts:read", key: "CONTACTS_READ" },
+          data: { literal: "leads:delete", key: "LEADS_DELETE" },
         },
       ],
     },
     {
-      code: `const x = "contacts:write";`,
+      code: `const x = "tags:write";`,
       errors: [{ messageId: "stringPermissionWithKey" }],
     },
     {
@@ -201,7 +207,7 @@ tester.run("no-string-permission", rule, {
 
     // Function argument
     {
-      code: `requireServiceBearer(req, "contacts:read");`,
+      code: `requireServiceBearer(req, "leads:read");`,
       errors: [{ messageId: "stringPermissionWithKey" }],
     },
 
@@ -219,13 +225,13 @@ tester.run("no-string-permission", rule, {
 
     // Static template literal (no interpolation)
     {
-      code: "const x = `contacts:read`;",
+      code: "const x = `leads:read`;",
       errors: [{ messageId: "stringPermissionWithKey" }],
     },
 
     // Array of literals
     {
-      code: `const perms = ["contacts:read", "events:write"];`,
+      code: `const perms = ["leads:read", "events:write"];`,
       errors: [
         { messageId: "stringPermissionWithKey" },
         { messageId: "stringPermissionWithKey" },
@@ -271,20 +277,20 @@ test("no-string-permission: regex match WITHOUT canonical membership is silent (
 });
 
 test("no-string-permission: canonical literal still fires withKey", () => {
-  const messages = lintCode(`const x = "contacts:read";`);
+  const messages = lintCode(`const x = "leads:read";`);
   assert.strictEqual(messages.length, 1, "expected exactly one diagnostic");
   assert.strictEqual(
     messages[0].messageId,
     "stringPermissionWithKey",
     "expected withKey message for canonical literal",
   );
-  assert.match(messages[0].message, /CONTACTS_READ/);
+  assert.match(messages[0].message, /LEADS_READ/);
 });
 
 test("no-string-permission: inline eslint-disable-next-line suppresses the diagnostic", () => {
   const code = [
     "// eslint-disable-next-line @rello-platform/permissions/no-string-permission -- legacy migration script",
-    'const x = "contacts:read";',
+    'const x = "leads:read";',
   ].join("\n");
   const messages = lintCode(code);
   assert.strictEqual(
@@ -297,7 +303,7 @@ test("no-string-permission: inline eslint-disable-next-line suppresses the diagn
 test("no-string-permission: disable-line without rationale also suppresses (rationale is a separate plugin's concern)", () => {
   const code = [
     "// eslint-disable-next-line @rello-platform/permissions/no-string-permission",
-    'const x = "contacts:read";',
+    'const x = "leads:read";',
   ].join("\n");
   const messages = lintCode(code);
   assert.strictEqual(
@@ -310,7 +316,7 @@ test("no-string-permission: disable-line without rationale also suppresses (rati
 test("no-string-permission: block-disable suppresses for the wrapped range", () => {
   const code = [
     "/* eslint-disable @rello-platform/permissions/no-string-permission -- audit log section */",
-    'const a = "contacts:read";',
+    'const a = "leads:read";',
     'const b = "events:write";',
     "/* eslint-enable @rello-platform/permissions/no-string-permission */",
     'const c = "leads:read";',

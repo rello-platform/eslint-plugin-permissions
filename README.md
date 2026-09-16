@@ -4,20 +4,20 @@ ESLint plugin that forbids string-literal permission slugs in Rello-ecosystem so
 
 ## Why
 
-`@rello-platform/permissions` defines the canonical permission registry as a `PERMISSIONS` const, with each entry exposing a `slug` (e.g. `contacts:read`, `flows:write`, `suppression:lift`). The TypeScript `PermissionSlug` type catches drift in code that flows through `hasPermission(...)` / `requireServiceBearer(...)` / `PlatformCaller.permissions` typed surfaces — but it cannot catch string literals that bypass the type system: untyped map keys, JSON config, picker option values, request bodies, audit-log fixtures, etc.
+`@rello-platform/permissions` defines the canonical permission registry as a `PERMISSIONS` const, with each entry exposing a `slug` (e.g. `leads:read`, `flows:write`, `suppression:lift`). The TypeScript `PermissionSlug` type catches drift in code that flows through `hasPermission(...)` / `requireServiceBearer(...)` / `PlatformCaller.permissions` typed surfaces — but it cannot catch string literals that bypass the type system: untyped map keys, JSON config, picker option values, request bodies, audit-log fixtures, etc.
 
 This rule closes that gap. It flags every `Literal` whose whole-string value matches the canonical permission shape `<resource>:<verb>` and points the developer at the matching `PERMISSIONS.X.slug` constant.
 
 ## Matching
 
-The rule matches **whole-string Literal values** that satisfy `/^[a-z][a-z-]*:[a-z][a-z-]+$/`. It fires on `"contacts:read"` but not on:
+The rule matches **whole-string Literal values** that satisfy `/^[a-z][a-z-]*:[a-z][a-z-]+$/`. It fires on `"leads:read"` but not on:
 
 - URLs: `"https://example.com"` (uppercase / multi-colon / has slashes)
 - Error message prose with embedded colons: `"foo: bar"` (whitespace breaks the match)
 - CSS selectors: `":hover"` (no resource segment) or `"a:hover"` (still matches if both segments are lowercase + hyphens — escape-hatch with a disable comment if the literal is intentional)
 - TypeScript type annotations and identifiers — the rule operates on `Literal` and static `TemplateLiteral` nodes, not on identifiers or type names
 
-Template literals with interpolation (`` `${resource}:${verb}` ``) are skipped — they are runtime-constructed and may legitimately resolve to a non-canonical value. Static template literals (`` `contacts:read` ``) are matched.
+Template literals with interpolation (`` `${resource}:${verb}` ``) are skipped — they are runtime-constructed and may legitimately resolve to a non-canonical value. Static template literals (`` `leads:read` ``) are matched.
 
 ## Suggested-fix lookup
 
